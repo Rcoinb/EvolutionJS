@@ -1,0 +1,512 @@
+<!DOCTYPE HTML>
+<html>
+
+<body bgcolor = 'gray'>
+
+<canvas bgcolor = 'white' id="ctx" width="1160" height="480"></canvas>
+<script>
+var ctx = document.getElementById("ctx").getContext("2d");
+
+var CANVAS_WIDTH = document.getElementById("ctx").width;
+var CANVAS_HEIGHT = document.getElementById("ctx").height;
+
+var WIDTH = 58;
+var HEIGHT = 24;
+var scale = 10;
+
+var initialDNA = "NO";
+
+var pause = false;
+
+var graphicPointsCount = 0;
+
+var population = 0;
+var lastPopulationSurv = 0;
+var curPopulationSurv = 0;
+var biggestPopulationSurv = 0;
+
+var INIT_HP = 35;
+var MAX_FOOD = 100;
+var MAX_POISON = 100;
+
+var creatures = {};
+
+var GRAPH_WIDTH = 375;
+var lowestPoint = Number.MAX_SAFE_INTEGER;
+var highestPoint = 0;
+
+size = function(obj) {
+    var size = 0, key;
+    for (key in obj) {
+        if (obj.hasOwnProperty(key)) size++;
+    }
+    return size;
+};
+	
+vec2d = function(x, y){
+	var vec2d = {
+		x: x,
+		y: y,
+	}
+	return vec2d;
+}
+	
+var matrix = new Array(WIDTH); // 0 - empty, 1 - wall, 2 - food, 3 - poison, 0.xxx - id of creature
+for (var i = 0; i < WIDTH; i++) {
+	matrix[i] = new Array(HEIGHT);
+}
+
+for (var x = 0; x < WIDTH; x ++) {
+	for (var y = 0; y < HEIGHT; y ++) {
+		matrix[x][y] = 0;
+	}
+}
+
+for (var x = 0; x < WIDTH; x ++) {
+	matrix[x][0] = 1;
+	matrix[x][HEIGHT - 1] = 1;
+}
+
+for (var y = 0; y < HEIGHT; y ++) {
+	matrix[0][y] = 1;
+	matrix[WIDTH - 1][y] = 1;
+}
+
+randomInteger = function(min, max){
+	var rand = min + Math.random()*(max+1-min) 
+	rand = Math.floor(rand)
+	return rand;
+}
+
+init = function(){
+	ctx.fillStyle = "#FFFFFF";
+	ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+	generatePopulation(64, -1, 0);
+}
+
+generateFood = function(){
+	fCount = 0;
+	pCount = 0;
+	for (var x = 0; x < WIDTH; x++) {
+		for (var y = 0; y < HEIGHT; y ++) {
+			if (matrix[x][y] == 2) {
+				fCount ++;
+			} else if (matrix[x][y] == 3) {
+				pCount ++;
+			}			
+		}
+	}
+	
+	while (fCount < MAX_FOOD) {
+		var emptyX = randomInteger(0, WIDTH - 1);
+		var emptyY = randomInteger(0, HEIGHT - 1);
+			
+		if (matrix[emptyX][emptyY] == 0) {
+			fCount ++;
+			matrix[emptyX][emptyY] = 2;
+		}
+	}
+	
+	while (pCount < MAX_POISON) {
+		var emptyX = randomInteger(0, WIDTH - 1);
+		var emptyY = randomInteger(0, HEIGHT - 1);
+			
+		if (matrix[emptyX][emptyY] == 0) {
+			pCount ++;
+			matrix[emptyX][emptyY] = 3;
+		}
+	}
+}
+
+generatePopulation = function(count, dna, mutation) {
+	var cDna = generateDNA(dna, mutation);
+	for (var i = 0; i < count; i ++) {
+		var emptyX = -1;
+		var emptyY = -1;
+		
+		while (emptyX == -1 || emptyY == -1) {
+			emptyX = randomInteger(0, WIDTH - 1);
+			emptyY = randomInteger(0, HEIGHT - 1);
+			
+			if (matrix[emptyX][emptyY] != 0) {
+				var emptyX = -1;
+				var emptyY = -1;
+			}
+		}
+		
+		if (dna == -1) {
+			cDna = generateDNA(dna, mutation);
+		}
+		
+		var newCreature = createCreature(emptyX, emptyY, cDna);
+		matrix[emptyX][emptyY] = newCreature.id;
+		creatures[newCreature.id] = newCreature;
+	}
+}
+
+generateDNA = function(basis, mutation) {
+	var dna = new Array(64);
+	if (basis == -1) {
+		for (var i = 0; i < 64; i ++) {
+			dna[i] = randomInteger(0, 63);
+		}
+		if (initialDNA != "NO") {
+			var dnaparts = initialDNA.split(',');
+			for (var p in dnaparts) {
+				dna[p] = dnaparts[p];
+			}
+		}
+	} else {
+		for (var b in basis) {
+			dna[b] = basis[b];
+		}
+		for (var i = 0; i < mutation; i ++) {
+			id = randomInteger(0, 63);
+			dna[id] = randomInteger(0, 63);
+		}
+	}
+	return dna;
+}
+
+createCreature = function(x, y, dna){
+	var id = Math.random();
+	var fvec = vec2d(0, 1);
+	var creature = {
+		x: x,
+		y: y,
+		dna: dna,
+		curop: 0,
+		forwardVec: fvec,
+		hp: INIT_HP,
+		id: id,
+	};
+	return creature;
+}
+
+document.onkeydown = function(event){
+}
+ 
+document.onkeyup = function(event){
+	if (event.keyCode == 32) {
+		if (pause == true) {
+			pause = false;
+		} else {
+			pause = true;
+		}
+	}
+}
+
+document.onclick = function(mouse){
+    var mouseX = mouse.clientX - document.getElementById('ctx').getBoundingClientRect().left;
+    var mouseY = mouse.clientY - document.getElementById('ctx').getBoundingClientRect().top;
+	if (matrix[Math.floor(mouseX / scale)][Math.floor(mouseY / scale)] > 0 && matrix[Math.floor(mouseX / scale)][Math.floor(mouseY / scale)] < 1) {
+		alert(creatures[matrix[Math.floor(mouseX / scale)][Math.floor(mouseY / scale)]].dna);
+	}
+}
+
+document.onmousemove = function(mouse){
+    var mouseX = mouse.clientX - document.getElementById('ctx').getBoundingClientRect().left;
+    var mouseY = mouse.clientY - document.getElementById('ctx').getBoundingClientRect().top;
+}
+
+drawCell = function(x, y, color){
+	ctx.fillStyle = color;
+	ctx.fillRect(x, y, scale, scale);
+}
+
+getCellBasedOnLookAndAngle = function(c, angle) {
+	var lookCordX = c.forwardVec.x * Math.cos(angle) - c.forwardVec.y * Math.sin(angle);
+	var lookCordY = c.forwardVec.x * Math.sin(angle) + c.forwardVec.y * Math.cos(angle);
+	
+	if (Math.abs(lookCordX) < 0.001) {
+		lookCordX = 0
+	}
+	if (lookCordX > 0.001) {
+		lookCordX = 1;
+	} else if (lookCordX < -0.001) {
+		lookCordX = -1;
+	}
+	if (Math.abs(lookCordY) < 0.001) {
+		lookCordY = 0
+	}
+	if (lookCordY > 0.001) {
+		lookCordY = 1;
+	} else if (lookCordY < -0.001) {
+		lookCordY = -1;
+	}
+	
+	lookCordX = c.x + lookCordX;
+	lookCordY = c.y + lookCordY;
+	
+	return {
+        x: lookCordX,
+        y: lookCordY
+    };
+}
+
+cMove  = function(c, command){
+	var angle = -(Math.PI / 4) + (Math.PI / 4) * (command);
+	
+	var cords = getCellBasedOnLookAndAngle(c, angle);
+	var cell = matrix[cords.x][cords.y];
+	
+	//0 - empty, 1 - wall, 2 - food, 3 - poison, 0.xxx - id of creature
+	if (cell == 0) {
+		matrix[c.x][c.y] = 0;
+		c.x = cords.x;
+		c.y = cords.y;
+		matrix[cords.x][cords.y] = c.id;
+		return 5;
+	} else if (cell > 0 && cell < 1) {
+		return 3;
+	} else if (cell == 1) {
+		return 2;
+	} else if (cell == 2) {
+		c.hp += 10;
+		matrix[c.x][c.y] = 0;
+		c.x = cords.x;
+		c.y = cords.y;
+		matrix[cords.x][cords.y] = c.id;
+		return 4;
+	} else if (cell == 3) {
+		c.hp -= 100000;
+		/*matrix[c.x][c.y] = 0;
+		c.x = cords.x;
+		c.y = cords.y;
+		matrix[cords.x][cords.y] = c.id;*/ //DO NOT REMOVE POISION
+		return 1;
+	}
+	
+	console.log("INVALID RETURN");
+	return 1;
+}
+
+cCatch  = function(c, command){
+	var angle = -(Math.PI / 4) + (Math.PI / 4) * (command - 8);
+	
+	var cords = getCellBasedOnLookAndAngle(c, angle);
+	var cell = matrix[cords.x][cords.y];
+	
+	//0 - empty, 1 - wall, 2 - food, 3 - poison, 0.xxx - id of creature
+	if (cell == 0) {
+		return 5;
+	} else if (cell > 0 && cell < 1) {
+		return 3;
+	} else if (cell == 1) {
+		return 2;
+	} else if (cell == 2) {
+		c.hp += 10;
+		matrix[cords.x][cords.y] = 0;
+		return 4;
+	} else if (cell == 3) {
+		matrix[cords.x][cords.y] = 2;
+		return 1;
+	}
+	
+	console.log("INVALID RETURN");
+	return 1;
+}
+
+cLook  = function(c, command){
+	var angle = -(Math.PI / 4) + (Math.PI / 4) * (command - 16);
+	
+	var cords = getCellBasedOnLookAndAngle(c, angle);
+	var cell = matrix[cords.x][cords.y];
+	//0 - empty, 1 - wall, 2 - food, 3 - poison, 0.xxx - id of creature
+	if (cell == 0) {
+		return 5;
+	} else if (cell > 0 && cell < 1) {
+		return 3;
+	} else if (cell == 1) {
+		return 2;
+	} else if (cell == 2) {
+		return 4;
+	} else if (cell == 3) {
+		return 1;
+	}
+	
+	console.log("INVALID RETURN");
+	return 1;
+}
+
+cRotate  = function(c, command){
+	var angle = (Math.PI / 4) * (command - 24);
+	
+	var fx = c.forwardVec.x * Math.cos(angle) - c.forwardVec.y * Math.sin(angle);
+	var fy = c.forwardVec.x * Math.sin(angle) + c.forwardVec.y * Math.cos(angle);
+	
+	if (Math.abs(fx) < 0.001) {
+		fx = 0
+	}
+	if (fx > 0.001) {
+		fx = 1;
+	} else if (fx < -0.001) {
+		fx = -1;
+	}
+	if (Math.abs(fy) < 0.001) {
+		fy = 0
+	}
+	if (fy > 0.001) {
+		fy = 1;
+	} else if (fy < -0.001) {
+		fy = -1;
+	}
+	
+	c.forwardVec.x = fx;
+	c.forwardVec.y = fy;
+	
+	return 1;
+}
+
+regenPopulation = function(){
+	var clones = {};
+	for (var c in creatures) {
+		matrix[creatures[c].x][creatures[c].y] = 0;
+	}
+	
+	for (var c in creatures) {
+		clones[c] = creatures[c];
+	}
+	
+	creatures = {};
+	
+	for (var c in clones) {
+		generatePopulation(6, clones[c].dna, 0);
+		generatePopulation(2, clones[c].dna, 2);
+	}
+	
+	
+	putPointOnGraphic(curPopulationSurv);
+	
+	population ++;
+	lastPopulationSurv = curPopulationSurv;
+	if (lastPopulationSurv > biggestPopulationSurv) {
+		biggestPopulationSurv = lastPopulationSurv;
+	}
+	curPopulationSurv = 0;
+}
+
+putPointOnGraphic = function(y) {
+	var point = {
+		x: (graphicPointsCount + 1) * 3,
+		y: (CANVAS_HEIGHT - y  / 10),
+	}
+	ctx.fillStyle = "#000000";
+	ctx.fillRect(point.x + 10 - Math.floor(graphicPointsCount / GRAPH_WIDTH) * GRAPH_WIDTH * 3, point.y - 15, 3, 3);
+	if (y > highestPoint) {
+		highestPoint = y;
+	}
+	if (y < lowestPoint) {
+		lowestPoint = y;
+	}
+	if (graphicPointsCount % 10 == 0){
+		ctx.fillStyle = "#000000";
+		ctx.fillText("" + graphicPointsCount, point.x + 10 - Math.floor(graphicPointsCount / GRAPH_WIDTH) * GRAPH_WIDTH * 3, CANVAS_HEIGHT - 5);
+	}
+	
+	if (graphicPointsCount % GRAPH_WIDTH == 0 && graphicPointsCount > 0){
+		ctx.fillStyle = "#FFFFFF";
+		ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+		ctx.fillStyle = "#FF0000";
+		ctx.fillRect(2, (CANVAS_HEIGHT - highestPoint  / 10) - 15, 3, 3);
+		ctx.fillRect(2, (CANVAS_HEIGHT - lowestPoint  / 10) - 15, 3, 3);
+		highestPoint = 0;
+		lowestPoint = Number.MAX_SAFE_INTEGER;
+	}
+
+	graphicPointsCount ++;
+}
+
+update = function(){
+	var regen = false;
+	if (pause == false ){
+		mainloop:
+		for (var cid in creatures) {
+			var c = creatures[cid];
+			loop:
+			for (var i = 0; i < 10; i ++) {
+				var breakout = false;
+				var moveBy = 0;
+				
+				if (c.dna[c.curop] >= 0 && c.dna[c.curop] <= 7) {
+					moveBy = cMove(c, c.dna[c.curop]);
+					breakout = true;
+				} else if (c.dna[c.curop] >= 8 && c.dna[c.curop] <= 15) {
+					moveBy = cCatch(c, c.dna[c.curop]);
+					breakout = true;
+				} else if (c.dna[c.curop] >= 16 && c.dna[c.curop] <= 23) {
+					moveBy = cLook(c, c.dna[c.curop]);
+				} else if (c.dna[c.curop] >= 24 && c.dna[c.curop] <= 31) {
+					moveBy = cRotate(c, c.dna[c.curop]);
+				} else if (c.dna[c.curop] >= 32 && c.dna[c.curop] <= 63) {
+					moveBy = c.dna[c.curop];
+				}
+				
+				c.curop = (c.curop + moveBy) % 64;
+			
+				if (breakout == true) {
+					break loop;
+				}
+			}
+			
+			c.hp -= 1;
+			
+			if (c.hp <= 0) {
+				matrix[c.x][c.y] = 0;
+				delete creatures[cid];
+			}
+			
+			if (size(creatures) <= 8) {
+				regen = true;
+				break mainloop;
+			}
+		}
+		
+		curPopulationSurv ++;
+		
+		if (regen == true){
+			//pause = true;
+			regenPopulation();
+		}
+	}
+
+
+	ctx.fillStyle = "#FFFFFF";
+	ctx.fillRect(0, 0, WIDTH * scale, HEIGHT * scale);
+	for (var x = 0; x < WIDTH; x ++) {
+		for (var y = 0; y < HEIGHT; y ++) {
+			var c = matrix[x][y]
+			if ((c > 0) && (c < 1)) {
+				drawCell(x * scale, y * scale, "#0000FF")
+			} else if (c == 1) {
+				drawCell(x * scale, y * scale, "#111111")
+			} else if (c == 2) {
+				drawCell(x * scale, y * scale, "#00FF00")
+			} else if (c == 3) {
+				drawCell(x * scale, y * scale, "#FF0000")
+			}
+		}
+	}
+	
+	ctx.fillStyle = "#FFFFFF";
+	ctx.fillRect(WIDTH * scale, 0, CANVAS_WIDTH - WIDTH * scale, HEIGHT * scale);
+	
+	ctx.fillStyle = "#FF0000";
+	ctx.fillText("POPULATION: " + population, CANVAS_WIDTH - WIDTH * scale + 10, 15);
+	ctx.fillText("LAST POPULATION'S LIFE: " + lastPopulationSurv, CANVAS_WIDTH - WIDTH * scale + 10, 25);
+	ctx.fillText("CUR POPULATION'S LIFE: " + curPopulationSurv, CANVAS_WIDTH - WIDTH * scale + 10, 35);
+	ctx.fillText("BIGGEST POPULATION'S LIFE: " + biggestPopulationSurv, CANVAS_WIDTH - WIDTH * scale + 10, 45);
+	ctx.fillText("CREATURES COUNT: " + size(creatures), CANVAS_WIDTH - WIDTH * scale + 10, 55);
+	
+	if (pause == true) {
+		ctx.fillText("PAUSE", CANVAS_WIDTH - 40, 15);
+	}
+}
+init();
+setInterval(update, 1);
+setInterval(generateFood, 150);
+</script>
+<p>Ivan Izhbirdeev, <a href="http://izhbirdeev.com">izhbirdeev.com</a></p>
+</body>
+
+</html> 
